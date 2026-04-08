@@ -1,32 +1,32 @@
-scCCESS for cell clustering and number of cell type estimation from scRNA-seq data
-scCCESS stands for single-cell Consensus Clusters of Encoded Subspaces. This repository stores the R implementation of scCCESS with stability-based approach for estimating number of cell types.
+# scCCESS
+single-cell Consensus Clusters of Encoded Subspaces
 
-Installation
-if (!require("devtools")) install.packages("devtools")
-devtools::install_github('PYangLab/scCCESS')
-Package required to use this package:
+This repository stores original R implementation of scCCESS, as described in Thomas et al. _Autoencoder-based cluster ensembles for single-cell RNA-seq data analysis_. ***BMC Bioinformatics***, 20, 660. https://doi.org/10.1186/s12859-019-3179-5. For the most updated version, please refer to https://github.com/PYangLab/scCCESS.
 
-keras (available on CRAN) See https://keras.rstudio.com/reference/install_keras.html for more details - this package can be sped up substantially if the user has a supported nVIDIA GPU with CUDA installed, or a supported AMD GPU with ROCm and ROCm Tensorflow installed.
-clue (available on CRAN)
-parallel (included with R by default)
-Package suggested when use this package:
+Package required to use this script:
+- keras (available on CRAN) See https://keras.rstudio.com/reference/install_keras.html for more details - this package can be sped up substantially if the user has a supported nVIDIA GPU with CUDA installed, or a supported AMD GPU with ROCm and ROCm Tensorflow installed.
+- clue (available on CRAN)
+- parallel (included with R by default)
 
-SIMLR Due to some users may meet fatal errors when using the official SIMLR package, we built an alternative that remove the optional T-SNE step to get rid of this issue. To install the unofficial alternative, try .install_github("yulijia/SIMLR", ref = 'master')
-SingleCellExperiment The demo dataset is a SingleCellExperiment object.
-The functions in this package are described below.
+The script comprises two functions, described below.
 
-encode
-Description
+## encode
+
+**Description**
 
 Generates an encoded subspace of a single-cell RNA-seq expression matrix.
 
-Usage
+**Usage**
 
+```
 encode(dat, seed = 1, max_random_projection = 2048, encoded_dim = 16, hidden_dims = c(128), 
   learning_rate = 0.001, batch_size = 32, epochs = 100, verbose = 1, scale = FALSE,
   genes_as_rows = FALSE)
-Arguments
+```
 
+**Arguments**
+
+```
 dat                     A matrix, data frame or tibble containing scRNA-seq expression values. By default,
                         genes are assumed to be represented by columns and samples are assumed to be 
                         represented by rows (but see the argument genes_as_rows). NA values are not  
@@ -62,27 +62,36 @@ scale                   If TRUE, gene values are rescaled to a mean of 0 and a s
 
 genes_as_rows           If TRUE, rows in the expression matrix are assumed to represent genes and columns 
                         are assumed to represent cells.
-Details
+```
+
+**Details**
 
 This function accepts a single scRNA-seq expression matrix, randomly samples a number of genes without replacement and trains an autoencoder artificial neural network on the resulting data. The function uses part of this network to encode cell data within a lower-dimensional latent space and returns the encoded matrix. This function does not need to be called directly by the user for clustering (see ensemble_cluster function below), but is provided for greater flexibility.
 
 It is not recommended to run this function in parallel as model training makes use of resources in parallel (CPU cores or GPU, depending on computer setup).
 
-Value
+**Value**
 
 An encoded expression matrix wherein cells are represented by rows and latent features are represented by columns.
 
-ensemble_cluster
-Description
+
+
+## ensemble_cluster
+
+**Description**
 
 Generates an ensemble clustering of a single-cell RNA-seq expression matrix.
 
-Usage
+**Usage**
 
+```
 ensemble_cluster(dat, seed = 1, cluster_func = function(x) kmeans(x, centers=5), 
   ensemble_sizes = c(1, 5, 10, 20, 50), cores = 1, ...)
-Arguments
+```
 
+**Arguments**
+
+```
 dat                 A matrix, data frame or tibble containing scRNA-seq expression values. By default, 
                     genes are assumed to be represented by columns and samples are assumed to be 
                     represented by rows (but see the argument genes_as_rows under the encode function). 
@@ -100,119 +109,16 @@ enzemble_sizes      A vector of integers. Number of individual clusterings to be
 cores               Number of CPU cores to be used in parallel for individual and ensemble clustering.
 
 ...                 Optional arguments to be passed to the encode function.
-Details
+```
+
+**Details**
 
 This function accepts a single scRNA-seq expression matrix. The encode function is used to produce multiple encodings of the data. These are separately clustered using a clustering function optionally provided by the user and produces a set of consensus clusters from these individual clusterings using the clue package, which are returned to the user.
 
-Value
+**Value**
 
 A list of length len(ensemble_sizes) containing vectors of consensus clusters per cell. Each ensemble clustering is generated using a number of individual clusterings given by the corresponding element in the ensemble_sizes argument.
 
-prefilter
-A QC function to remove lowly expressed genes
+**Reference**
 
-Usage
-
-prefilter(table, minReads = 1000, minGene = 100, minCountsperGene = 1, removeZeroGene = T)
-estimate_k
-Estimated number of clusters via clustering stability metric
-
-Usage
-
-estimate_k(dat, seed = 1, criteria_method = "NMI", cluster_func = function(x) kmeans(x, centers), krange = 2:25, ensemble_sizes = c(1, 5, 10, 20, 50), cores = 1, ...)
-Arguments
-
-dat                 A matrix, data frame or tibble containing scRNA-seq expression values. By default, 
-                    genes are assumed to be represented by columns and samples are assumed to be 
-                    represented by rows (but see the argument genes_as_rows under the encode function). 
-                    NA values are not supported, but may be replaced by 0s.
-
-seed                Used to generate random seeds for the encode function and acts as a random seed 
-                    for stochastic clustering functions.
-
-cluster_func        Any function which will accept a matrix (rows as samples, columns as features) and 
-                    return a clustering object such as that returned by the kmeans function.
-
-enzemble_sizes      A vector of integers. Number of individual clusterings to be used in each ensemble 
-                    clustering returned.
-
-cores               Number of CPU cores to be used in parallel for individual and ensemble clustering.
-
-krange              a range of K that could be evaluated to find the optimal number of clusters
-
-criteria_method     criteria used to measure stability, by default is Normalized Mutual Information (NMI).
-
-...                 Optional arguments to be passed to the encode function.
-Example
-scCCESS with K-means
-library(scCCESS)
-library(SingleCellExperiment)
-
-data(sce, package = 'scCCESS')
-dat=SingleCellExperiment::counts(sce)
-
-dat=prefilter(dat)
-res = estimate_k(dat,
-               seed = 1, 
-               cluster_func = function(x,centers) { 
-                 set.seed(42);
-                 kmeans(x, centers)
-               },
-               criteria_method = "NMI",
-               krange = 5:15, ensemble_sizes = 10,
-               cores = 8
-)
-
-cluster = ensemble_cluster(dat, 
-                          seed = 1, 
-                          cluster_func = function(x) {
-                            set.seed(1)
-                            kmeans(x, centers = res$ngroups)
-                          }, 
-                          cores = 8, 
-                          genes_as_rows = T, 
-                          ensemble_sizes = 10, 
-                          verbose = 0, 
-                          scale = F, 
-                          batch_size = 64
-)
-
-
-scCCESS with SIMLR
-we recommend user to use , in which is faster than .SIMLR_Large_ScaleSIMLR
-
-library(scCCESS)
-library(SIMLR)
-
-data(sce, package = 'scCCESS')
-dat=SingleCellExperiment::counts(sce)
-
-res = estimate_k(dat,
-               seed = 1, 
-               cluster_func = function(x,centers) {
-                 set.seed(42);
-                 SIMLR_Large_Scale(t(x), c=centers,kk=15)
-               },
-               criteria_method = "NMI",
-               krange = 5:15, ensemble_sizes = 10,
-               cores = 8
-)
-
-
-cluster = ensemble_cluster(dat, 
-                          seed = 1, 
-                          cluster_func = function(x) {
-                            set.seed(1)
-                            SIMLR_Large_Scale(t(x), c=res$ngroups,kk=15)
-                          }, 
-                          cores = 8, 
-                          genes_as_rows = T, 
-                          ensemble_sizes = 10, 
-                          verbose = 0, 
-                          scale = F, 
-                          batch_size = 64
-)
-References
-Lijia Yu, Yue Cao, Jean Yee Hwa Yang, Pengyi Yang† (2022) Benchmarking clustering algorithms on estimating the number of cell types from single-cell RNA-sequencing data. Genome Biology, 23, 49. [Full Text]
-
-Thomas A. Geddes, Taiyun Kim, Lihao Nan, James G. Burchfield, Jean Yee Hwa Yang, Dacheng Tao, Pengyi Yang† (2019) Autoencoder-based cluster ensembles for single-cell RNA-seq data analysis. BMC Bioinformatics, 20, 660. [Full Text]
+Geddes, T., Kim, T., Nan, L., Burchfield, J., Yang, J., Tao, D. & Yang, P. (2019) _Autoencoder-based cluster ensembles for single-cell RNA-seq data analysis_. ***BMC Bioinformatics***, 20, 660. https://doi.org/10.1186/s12859-019-3179-5
